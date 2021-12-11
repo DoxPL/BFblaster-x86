@@ -87,9 +87,11 @@ disp_char:
 
 get_char:
     call read_symbol
-    lea esi, [prog_buff]
-    mov dl, [esi]
+    mov edx, dword [prog_ptr]
+    lea esi, [prog_buff + edx]
+    mov dl, [symbol]
     mov byte [esi], dl
+    jmp run_instr
 
 read_symbol:
     push ebp
