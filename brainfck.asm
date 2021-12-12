@@ -2,10 +2,10 @@
 ; Author: Dominik G.
 
 section .data
-    SYNTAX_ERR_LB db 'Syntax error'
-    prog_buff times 30000 db 0
+    memory times 30000 db 0
+    mem_ptr dw 0
+    program times 4096 db 0
     prog_ptr dw 0
-    symbol_index db 0
 
 section .bss
     symbol resb 1
@@ -14,7 +14,7 @@ section .text
     global _start
 
 _start:
-    jmp run_instr
+    jmp load_prog
 
 _success:
     mov ebx, 0
@@ -28,76 +28,106 @@ _exit:
     mov eax, 1
     int 0x80
 
-run_instr:
-    mov byte [symbol], 0x0
+load_prog:
     call read_symbol
-    ; symbol == '>'
-    cmp byte [symbol], 0x3e
+    mov edx, dword [prog_ptr]
+    lea esi, [program + edx]
+    cmp byte [esi], 0x0
+    je run_prog
+    inc dword [prog_ptr] 
+    jmp load_prog
+
+run_prog:
+    mov byte [prog_ptr], 0
+    jmp run_instr
+
+run_instr:
+    mov edx, dword [prog_ptr]
+    lea esi, [program + edx]
+    ; token == '>'
+    cmp byte [esi], 0x3e
     je inc_ptr
-    ; symbol == '<'
-    cmp byte [symbol], 0x3c
+    ; token == '<'
+    cmp byte [esi], 0x3c
     je dec_ptr
-    ; symbol == '+'
-    cmp byte [symbol], 0x2b
+    ; token == '+'
+    cmp byte [esi], 0x2b
     je inc_val
-    ; symbol == '-'
-    cmp byte [symbol], 0x2d
+    ; token == '-'
+    cmp byte [esi], 0x2d
     je dec_val
-    ; symbol == '.'
-    cmp byte [symbol], 0x2e
+    ; token == '.'
+    cmp byte [esi], 0x2e
     je disp_char
-    ; symbol == ','
-    cmp byte [symbol], 0x2c
+    ; token == ','
+    cmp byte [esi], 0x2c
     je get_char
-    ; symbol == '['
-    cmp byte [symbol], 0x5b
-    ; symbol == ']'
-    cmp byte [symbol], 0x5d
-    ; symbol == '0'
-    cmp byte [symbol], 0x0
+    ; token == '['
+    cmp byte [esi], 0x5b
+    je loop
+    ; token == ']'
+    cmp byte [esi], 0x5d
+    ; token == '0'
+    cmp byte [esi], 0x0
     je _success
     jmp _failure
 
-inc_ptr:
+next_instr:
     inc dword [prog_ptr]
     jmp run_instr
 
+loop:
+    ; mov edx, dword [mem_ptr]
+    ; cmp [memory + edx], 0
+    ; je run_instr
+    ; cmp [program + prog_ptr], 0
+    je next_instr
+
+inc_ptr:
+    inc dword [mem_ptr]
+    jmp next_instr
+
 dec_ptr:
-    dec dword [prog_ptr]
-    jmp run_instr
+    dec dword [mem_ptr]
+    jmp next_instr
 
 inc_val:
-    mov edx, dword [prog_ptr]
-    lea esi, [prog_buff + edx]
+    mov edx, dword [mem_ptr]
+    lea esi, [memory + edx]
     inc byte [esi]
-    jmp run_instr
+    jmp next_instr
 
 dec_val:
-    mov edx, dword [prog_ptr]
-    lea esi, [prog_buff + edx]
+    mov edx, dword [mem_ptr]
+    lea esi, [memory + edx]
     dec byte [esi]
-    jmp run_instr
+    jmp next_instr
 
 disp_char:
-    mov edx, dword [prog_ptr]
-    lea esi, [prog_buff + edx]
+    mov edx, dword [mem_ptr]
+    lea esi, [memory + edx]
     push esi
     call put_char
-    jmp run_instr
+    jmp next_instr
 
 get_char:
-    call read_symbol
-    mov edx, dword [prog_ptr]
-    lea esi, [prog_buff + edx]
-    mov dl, [symbol]
-    mov byte [esi], dl
-    jmp run_instr
+    mov edx, dword [mem_ptr]
+    lea esi, [memory + edx]
+    mov edx, 1
+    mov ecx, esi
+    mov ebx, 0
+    mov eax, 3
+    int 0x80
+    jmp next_instr
 
 read_symbol:
     push ebp
     mov ebp, esp
+    mov edx, dword [prog_ptr]
+    lea esi, [program + edx]
+    mov byte [esi], 0
     mov edx, 1
-    mov ecx, symbol
+    mov ecx, [esi]
     mov ebx, 0
     mov eax, 3
     int 0x80
@@ -116,3 +146,9 @@ put_char:
     mov esp, ebp
     pop ebp
     ret
+
+
+;;;
+test:
+    mov byte [memory], 98
+    jmp disp_char
