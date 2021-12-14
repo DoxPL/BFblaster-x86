@@ -7,9 +7,6 @@ section .data
     mem_ptr dd 0
     prog_ptr dd 0
 
-section .bss
-    symbol resb 1
-
 section .text
     global _start
 
@@ -35,7 +32,7 @@ load_prog:
     call read_symbol
     cmp byte [esi], 0x0
     je run_prog
-    inc dword [prog_ptr] 
+    inc dword [prog_ptr]
     jmp load_prog
 
 run_prog:
@@ -66,12 +63,37 @@ next_instr:
     je get_char
     ; symbol == '['
     cmp byte [esi], 0x5b
+    je _loop
     ; symbol == ']'
     cmp byte [esi], 0x5d
+    je rewind
     ; symbol == '0'
     cmp byte [esi], 0x0
     je _success
     jmp _failure
+
+_loop:
+    mov edx, dword [mem_ptr]
+    lea esi, [memory + edx]
+    cmp byte [esi], 0
+    je forward
+    jmp next_instr
+
+forward:
+    mov edx, dword [prog_ptr]
+    lea esi, [program + edx]
+    inc dword [prog_ptr]
+    cmp byte [esi], 0x5d
+    je next_instr
+    jmp forward
+
+rewind:
+    dec dword [prog_ptr]
+    mov edx, dword [prog_ptr]
+    lea esi, [program + edx]
+    cmp byte [esi], 0x5b
+    je _loop
+    jmp rewind
 
 inc_ptr:
     inc dword [mem_ptr]
@@ -101,11 +123,10 @@ disp_char:
     jmp next_instr
 
 get_char:
-    call read_symbol
     mov edx, dword [mem_ptr]
     lea esi, [memory + edx]
-    mov dl, [symbol]
-    mov byte [esi], dl
+    push esi
+    call read_symbol
     jmp next_instr
 
 read_symbol:
