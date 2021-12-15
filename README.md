@@ -1,4 +1,4 @@
-# Brainfuck-x86
+# BFbluster-x86
 A tiny Brainfuck interpreter written in x86 assembly
 
 Sample program:
