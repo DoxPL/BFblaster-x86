@@ -2,6 +2,16 @@
 ; Author: Dominik G.
 
 section .data
+    TOKEN_GTS equ 0x3e
+    TOKEN_LTS equ 0x3c
+    TOKEN_PLU equ 0x2b
+    TOKEN_DSH equ 0x2d
+    TOKEN_DOT equ 0x2e
+    TOKEN_COM equ 0x2c
+    TOKEN_LSB equ 0x5b
+    TOKEN_RSB equ 0x5d
+    TOKEN_TLD equ 0x7e
+    TOKEN_NUL equ 0x0
     memory times 30000 db 0
     program times 4096 db 0
     mem_ptr dd 0
@@ -30,7 +40,9 @@ load_prog:
     lea esi, [program + edx]
     push esi
     call read_symbol
-    cmp byte [esi], 0x0
+    cmp byte [esi], TOKEN_NUL
+    je run_prog
+    cmp byte [esi], TOKEN_TLD
     je run_prog
     inc dword [prog_ptr]
     jmp load_prog
@@ -43,34 +55,25 @@ next_instr:
     mov edx, dword [prog_ptr]
     lea esi, [program + edx]
     inc dword [prog_ptr]
-    ; symbol == '>'
-    cmp byte [esi], 0x3e
+    cmp byte [esi], TOKEN_GTS
     je inc_ptr
-    ; symbol == '<'
-    cmp byte [esi], 0x3c
+    cmp byte [esi], TOKEN_LTS
     je dec_ptr
-    ; symbol == '+'
-    cmp byte [esi], 0x2b
+    cmp byte [esi], TOKEN_PLU
     je inc_val
-    ; symbol == '-'
-    cmp byte [esi], 0x2d
+    cmp byte [esi], TOKEN_DSH
     je dec_val
-    ; symbol == '.'
-    cmp byte [esi], 0x2e
+    cmp byte [esi], TOKEN_DOT
     je disp_char
-    ; symbol == ','
-    cmp byte [esi], 0x2c
+    cmp byte [esi], TOKEN_COM
     je get_char
-    ; symbol == '['
-    cmp byte [esi], 0x5b
+    cmp byte [esi], TOKEN_LSB
     je _loop
-    ; symbol == ']'
-    cmp byte [esi], 0x5d
+    cmp byte [esi], TOKEN_RSB
     je rewind
-    ; symbol == '0'
-    cmp byte [esi], 0x0
+    cmp byte [esi], TOKEN_NUL
     je _success
-    jmp _failure
+    jmp next_instr
 
 _loop:
     mov edx, dword [mem_ptr]
