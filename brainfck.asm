@@ -1,6 +1,6 @@
 ; Brainfuck interpreter
 ; Author: Dominik G.
-; Version: 1.0
+; Version: 1.1
 
 section .data
     TOKEN_GTS equ 0x3e
@@ -13,10 +13,10 @@ section .data
     TOKEN_RSB equ 0x5d
     TOKEN_TLD equ 0x7e
     TOKEN_NUL equ 0x00
-    memory times 30000 db 0
     program times 4096 db 0
-    mem_ptr dd 0
-    prog_ptr dd 0
+    memory times 30000 db 0
+    prg_counter dd 0
+    mem_counter dd 0
 
 section .text
     global _start
@@ -27,51 +27,73 @@ _start:
     jmp load_prog
 
 ; exit from the main routine with the code 0
-_exit:
+exit:
     mov ebx, 0
     mov eax, 1
     int 0x80
 
-; start the loop, skip the iteration if
-; the value at the current memory cell is 0
-_loop:
-    mov edx, dword [mem_ptr]
+; start the loop iter, skip if the value
+; at the current memory cell equals 0
+bf_loop:
+    mov edx, dword [mem_counter]
     lea esi, [memory + edx]
     cmp byte [esi], 0
     je forward
-    push dword [prog_ptr]
-    call iterate
-    jmp _loop
+    push dword [prg_counter]
+    call inst_seq
+    jmp bf_loop
 
-; keep the current base pointer
-; jump to the next instruction
-iterate:
+; prepare the stack, save the current sp
+; and go to the next instruction
+inst_seq:
     push ebp
     mov ebp, esp
     jmp next_instr
 
-; terminate the current iteration
+; restore the program counter
 ; return to the procedure caller
 iter_term:
     mov edx, [ebp + 8]
-    mov dword [prog_ptr], edx
-    mov esp, ebp
-    pop ebp
-    ret
+    mov dword [prg_counter], edx
+    jmp ret_to_caller
 
 ; move the program pointer directly
 ; behind the current loop
 forward:
-    mov edx, dword [prog_ptr]
+    call jump_over
+    jmp next_instr
+
+; prepare the stack, save the current sp
+jump_over:
+    push ebp
+    mov ebp, esp
+
+; skip the current instruction
+; or nested branch
+skip_inst:
+    mov edx, dword [prg_counter]
     lea esi, [program + edx]
-    inc dword [prog_ptr]
-    cmp byte [esi], 0x5d
-    je next_instr
-    jmp forward
+    inc dword [prg_counter]
+    cmp byte [esi], TOKEN_LSB
+    je skip_next
+    cmp byte [esi], TOKEN_RSB
+    jne skip_inst
+
+; return from the subroutine
+ret_to_caller:
+    mov esp, ebp
+    pop ebp
+    ret
+
+; skip the nested loop and move to 
+; the next instruction to omit
+skip_next:
+    call jump_over
+    jmp skip_inst
 
 ; load the program into memory
 load_prog:
-    mov edx, dword [prog_ptr]
+    mov edx, dword [prg_counter]
     lea esi, [program + edx]
     push esi
     call read_symbol
@@ -79,21 +101,21 @@ load_prog:
     je run_prog
     cmp byte [esi], TOKEN_TLD
     je run_prog
-    inc dword [prog_ptr]
+    inc dword [prg_counter]
     jmp load_prog
 
 ; zero the program pointer and switch
 ; to the first instruction
 run_prog:
-    mov dword [prog_ptr], 0
+    mov dword [prg_counter], 0
     jmp next_instr
 
 ; run the instruction based
 ; on the current token
 next_instr:
-    mov edx, dword [prog_ptr]
+    mov edx, dword [prg_counter]
     lea esi, [program + edx]
-    inc dword [prog_ptr]
+    inc dword [prg_counter]
     cmp byte [esi], TOKEN_GTS
     je inc_ptr
     cmp byte [esi], TOKEN_LTS
@@ -107,33 +129,33 @@ next_instr:
     cmp byte [esi], TOKEN_COM
     je get_char
     cmp byte [esi], TOKEN_LSB
-    je _loop
+    je bf_loop
     cmp byte [esi], TOKEN_RSB
     je iter_term
     cmp byte [esi], TOKEN_NUL
-    je _exit
+    je exit
     jmp next_instr
 
 ; increase the program memory pointer
 inc_ptr:
-    inc dword [mem_ptr]
+    inc dword [mem_counter]
     jmp next_instr
 
 ; decrease the program memory pointer
 dec_ptr:
-    dec dword [mem_ptr]
+    dec dword [mem_counter]
     jmp next_instr
 
 ; increase the value at the current address
 inc_val:
-    mov edx, dword [mem_ptr]
+    mov edx, dword [mem_counter]
     lea esi, [memory + edx]
     inc byte [esi]
     jmp next_instr
 
 ; decrease the value at the current address
 dec_val:
-    mov edx, dword [mem_ptr]
+    mov edx, dword [mem_counter]
     lea esi, [memory + edx]
     dec byte [esi]
     jmp next_instr
@@ -141,7 +163,7 @@ dec_val:
 ; display the ascii character stored
 ; at the current memory address
 disp_char:
-    mov edx, dword [mem_ptr]
+    mov edx, dword [mem_counter]
     lea esi, [memory + edx]
     push esi
     call put_char
@@ -150,7 +172,7 @@ disp_char:
 ; load the character into the current
 ; memory location from stdin
 get_char:
-    mov edx, dword [mem_ptr]
+    mov edx, dword [mem_counter]
     lea esi, [memory + edx]
     push esi
     call read_symbol
