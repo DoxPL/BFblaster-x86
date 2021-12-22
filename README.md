@@ -19,4 +19,5 @@ Example: In order to print a single 'b' letter, use:
 
 
 ToDo:
-- Support for nested loops
+- Refactoring
+- Bug fixes
